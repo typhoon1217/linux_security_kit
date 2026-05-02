@@ -1,0 +1,46 @@
+# Work inventory example. Copy to inventory/work.yml and edit.
+# Keep this file separate from homelab.yml to avoid accidental cross-applies.
+
+all:
+  vars:
+    ansible_user: ops
+    ansible_become: true
+    ansible_ssh_common_args: '-o ProxyJump=bastion-prod'
+
+  children:
+
+    work_proxmox_hosts:
+      hosts:
+        # placeholder — replace with real ones
+        prod-pve-01:
+          ansible_host: 10.0.0.10
+      vars:
+        host_kind: proxmox-host
+        kit_dest: /root/security
+
+    work_lxc:
+      # Generate from tools/gen-ansible-inventory.sh on prod-pve-01.
+      hosts: {}
+      vars:
+        host_kind: lxc-container
+        kit_dest: /root/security
+
+    work_app_servers:
+      hosts:
+        app-01:
+          ansible_host: 10.0.1.10
+        app-02:
+          ansible_host: 10.0.1.11
+      vars:
+        host_kind: vm-or-bare
+        kit_dest: /opt/security
+
+# Patch policy variables — override per-environment as needed.
+work_app_servers:
+  vars:
+    auto_reboot_after_patch: false   # production: reboot manually
+    only_security_updates: true
+
+work_lxc:
+  vars:
+    auto_reboot_after_patch: false   # restart container manually

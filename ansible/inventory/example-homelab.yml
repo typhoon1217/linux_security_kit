@@ -1,0 +1,40 @@
+# Homelab inventory example. Copy to inventory/homelab.yml and edit.
+# Hosts are grouped by role. Variables are set per-group, overridable per-host.
+
+all:
+  vars:
+    ansible_user: root
+    # If you use a non-root user with sudo, swap to:
+    # ansible_user: youruser
+    # ansible_become: true
+
+  children:
+
+    proxmox_hosts:
+      hosts:
+        pve-home:
+          ansible_host: 192.168.1.10
+      vars:
+        host_kind: proxmox-host
+        kit_dest: /root/security
+
+    homelab_lxc:
+      # LXC containers running on the Proxmox host above.
+      # Easier to generate with: tools/gen-ansible-inventory.sh
+      hosts:
+        ct-monitoring:
+          ansible_host: 192.168.1.20
+        ct-dev:
+          ansible_host: 192.168.1.21
+      vars:
+        host_kind: lxc-container
+        kit_dest: /root/security
+
+    homelab_bare:
+      # Non-Proxmox machines (Arch desktop, NAS, etc.)
+      hosts:
+        arch-desktop:
+          ansible_host: 192.168.1.5
+      vars:
+        host_kind: vm-or-bare
+        kit_dest: /root/security

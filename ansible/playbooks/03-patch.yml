@@ -1,0 +1,87 @@
+---
+# Patch OS packages. Defaults to security-only and skips reboot.
+# Use --check for a dry-run.
+#
+# Usage:
+#   ansible-playbook -i inventory/homelab.yml playbooks/03-patch.yml --check
+#   ansible-playbook -i inventory/homelab.yml playbooks/03-patch.yml
+#
+# Override defaults at command line:
+#   -e only_security_updates=false   # full upgrade
+#   -e auto_reboot_after_patch=true  # automatic reboot when needed
+#
+# Behavior:
+#   - apt:    runs apt update + unattended-upgrade -d (security pocket only by default)
+#   - dnf:    runs dnf upgrade --security
+#   - pacman: refuses (Arch is intentionally manual; use a separate playbook)
+
+- hosts: all
+  become: true
+  serial: 1                # rolling: one host at a time
+  gather_facts: true
+
+  pre_tasks:
+    - name: refuse on pacman hosts
+      ansible.builtin.fail:
+        msg: "Arch hosts are excluded from auto-patching. Patch them manually."
+      when: ansible_pkg_mgr == 'pacman'
+
+  tasks:
+    - name: apt update
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 600
+      when: ansible_pkg_mgr == 'apt'
+
+    - name: apt — security-only upgrade
+      ansible.builtin.shell: |
+        unattended-upgrade -d 2>&1 | tail -40
+      register: apt_sec
+      changed_when: "'Packages that will be upgraded:' in apt_sec.stdout"
+      when:
+        - ansible_pkg_mgr == 'apt'
+        - only_security_updates | default(true)
+
+    - name: apt — full upgrade (when only_security_updates=false)
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: true
+      when:
+        - ansible_pkg_mgr == 'apt'
+        - not (only_security_updates | default(true))
+
+    - name: dnf — security-only upgrade
+      ansible.builtin.dnf:
+        name: '*'
+        state: latest
+        security: true
+      when:
+        - ansible_pkg_mgr == 'dnf'
+        - only_security_updates | default(true)
+
+    - name: dnf — full upgrade
+      ansible.builtin.dnf:
+        name: '*'
+        state: latest
+      when:
+        - ansible_pkg_mgr == 'dnf'
+        - not (only_security_updates | default(true))
+
+    - name: check whether reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_marker
+
+    - name: report reboot requirement
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} needs a reboot: {{ reboot_marker.stat.exists | default(false) }}"
+
+    - name: reboot if requested and required
+      ansible.builtin.reboot:
+        msg: "security patch reboot via Ansible"
+        connect_timeout: 10
+        reboot_timeout: 600
+        post_reboot_delay: 30
+      when:
+        - reboot_marker.stat.exists | default(false)
+        - auto_reboot_after_patch | default(false)

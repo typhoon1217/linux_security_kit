@@ -1,0 +1,35 @@
+---
+# Run a specific CVE's mitigate.sh on the host.
+# Required vars:
+#   cve_id          : e.g. "2026-31431-copy-fail"
+#   kit_dest        : where the kit lives on the host (default from group_vars)
+# Optional:
+#   cve_year        : "2026" or "2025". Auto-derived from cve_id when possible.
+#   mitigate_dry_run: true → pass --dry-run, doesn't modify the system
+
+- name: derive cve_year from cve_id when not set
+  ansible.builtin.set_fact:
+    cve_year: "{{ cve_id.split('-')[0] if cve_year is not defined else cve_year }}"
+
+- name: locate mitigate.sh on the host
+  ansible.builtin.stat:
+    path: "{{ kit_dest }}/cves/{{ cve_year }}/{{ cve_id }}/mitigate.sh"
+  register: mitigate_stat
+
+- name: fail when mitigate.sh is missing
+  ansible.builtin.fail:
+    msg: |
+      mitigate.sh not found at {{ mitigate_stat.stat.path | default('?') }}.
+      Did you sync the kit? Run playbooks/01-audit.yml first.
+  when: not mitigate_stat.stat.exists
+
+- name: run mitigate.sh ({{ 'dry-run' if mitigate_dry_run | default(false) else 'apply' }})
+  ansible.builtin.command:
+    cmd: "{{ mitigate_stat.stat.path }} {{ '--dry-run' if mitigate_dry_run | default(false) else '' }}"
+  register: mitigate_out
+  changed_when: mitigate_out.rc == 0 and not (mitigate_dry_run | default(false))
+  failed_when: mitigate_out.rc not in [0, 1]   # 0=ok, 1=warnings; 2 is real failure
+
+- name: show mitigate output
+  ansible.builtin.debug:
+    msg: "{{ mitigate_out.stdout_lines | default([]) }}"

@@ -1,0 +1,22 @@
+---
+# Defaults for every host. Override per group/host as needed.
+
+# Where to sync the bash kit on each managed host.
+kit_dest: /root/security
+
+# Path to the local kit (ansible control node side).
+# Default assumes this ansible/ directory lives inside the kit.
+kit_src: "{{ playbook_dir | dirname }}"
+
+# Patch policy — by default conservative.
+only_security_updates: true     # apt: only -security pocket; dnf: only security errata
+auto_reboot_after_patch: false  # leave reboot decision to a human
+patch_pre_check: true           # run scan-all-cves before patching
+
+# Auto-update agent settings.
+auto_update_enabled: true
+auto_update_reboot_time: "03:00"
+
+# Trivy integration (optional). Set true to run trivy as part of audit.
+trivy_enabled: false
+trivy_severity: "CRITICAL,HIGH"

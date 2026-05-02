@@ -1,0 +1,13 @@
+---
+# Install and enable a distro-appropriate automatic security update agent.
+# Idempotent — re-runs are safe.
+#
+# Usage:
+#   ansible-playbook -i inventory/homelab.yml playbooks/04-configure-auto-updates.yml
+
+- hosts: all
+  become: true
+  gather_facts: true
+
+  roles:
+    - auto_updates

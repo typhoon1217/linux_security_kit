@@ -1,0 +1,38 @@
+---
+# Apply the mitigate.sh of a specific CVE across the inventory.
+# Required extra-var: cve_id
+#
+# Usage:
+#   ansible-playbook -i inventory/work.yml playbooks/02-mitigate.yml \
+#       -e cve_id=2026-31431-copy-fail
+#
+# Always preview first with:
+#       -e cve_id=... -e mitigate_dry_run=true
+
+- hosts: all
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: confirm cve_id was provided
+      ansible.builtin.fail:
+        msg: "Pass -e cve_id=<id-slug>, e.g. cve_id=2026-31431-copy-fail"
+      when: cve_id is not defined or cve_id | length == 0
+
+  roles:
+    - kit_sync
+    - role: cve_mitigate
+      vars:
+        cve_year: "{{ cve_id.split('-')[0] }}"
+
+  post_tasks:
+    - name: re-run scan-all-cves to confirm mitigation took effect
+      ansible.builtin.command:
+        cmd: "bash {{ kit_dest }}/tools/scan-all-cves.sh"
+      register: post_scan
+      changed_when: false
+      failed_when: post_scan.rc == 2
+
+    - name: show post-mitigation summary
+      ansible.builtin.debug:
+        msg: "{{ post_scan.stdout_lines[-8:] }}"

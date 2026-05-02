@@ -1,0 +1,67 @@
+---
+# Configure automatic security updates on the host.
+# Currently supports apt-based (Debian/Ubuntu/PVE) and dnf-based (RHEL/Rocky/Alma) systems.
+
+- name: gather minimal facts
+  ansible.builtin.setup:
+    gather_subset:
+      - distribution
+      - distribution_release
+
+- name: apt — install unattended-upgrades
+  ansible.builtin.apt:
+    name:
+      - unattended-upgrades
+      - apt-listchanges
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_pkg_mgr == 'apt'
+
+- name: apt — enable unattended-upgrades service
+  ansible.builtin.systemd:
+    name: unattended-upgrades
+    enabled: true
+    state: started
+  when: ansible_pkg_mgr == 'apt'
+
+- name: apt — write 20auto-upgrades policy
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: '0644'
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+  when: ansible_pkg_mgr == 'apt'
+
+- name: dnf — install dnf-automatic
+  ansible.builtin.dnf:
+    name: dnf-automatic
+    state: present
+  when: ansible_pkg_mgr == 'dnf'
+
+- name: dnf — enable security-only auto updates
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/automatic.conf
+    regexp: "{{ item.key }}"
+    line: "{{ item.line }}"
+  loop:
+    - { key: '^upgrade_type', line: 'upgrade_type = security' }
+    - { key: '^apply_updates', line: 'apply_updates = yes' }
+  when: ansible_pkg_mgr == 'dnf'
+
+- name: dnf — enable timer
+  ansible.builtin.systemd:
+    name: dnf-automatic.timer
+    enabled: true
+    state: started
+  when: ansible_pkg_mgr == 'dnf'
+
+- name: pacman — note (Arch is intentionally manual)
+  ansible.builtin.debug:
+    msg: |
+      Arch does not ship a default auto-update tool. Manual `pacman -Syu` cadence is the norm.
+      For homelab boxes, consider a weekly cron of `pacman -Syu --noconfirm`, but be aware of
+      manual intervention messages from the news feed.
+  when: ansible_pkg_mgr == 'pacman'

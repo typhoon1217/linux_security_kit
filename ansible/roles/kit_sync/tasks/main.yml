@@ -1,0 +1,29 @@
+---
+# Sync the bash kit to the managed host. Idempotent — only changes when files differ.
+
+- name: ensure kit directory exists
+  ansible.builtin.file:
+    path: "{{ kit_dest }}"
+    state: directory
+    mode: '0755'
+
+- name: rsync kit (cves, tools, playbooks, README)
+  ansible.posix.synchronize:
+    src: "{{ kit_src }}/"
+    dest: "{{ kit_dest }}/"
+    delete: true
+    rsync_opts:
+      - "--exclude=ansible/"
+      - "--exclude=.git/"
+      - "--exclude=*.swp"
+  delegate_to: "{{ inventory_hostname }}"
+  # Fallback: if synchronize/posix.synchronize is missing, use copy module.
+  # Comment the above task and uncomment below.
+  # ansible.builtin.copy:
+  #   src: "{{ kit_src }}/"
+  #   dest: "{{ kit_dest }}/"
+
+- name: ensure all .sh scripts are executable
+  ansible.builtin.shell: |
+    find {{ kit_dest }} -type f -name "*.sh" -exec chmod +x {} +
+  changed_when: false

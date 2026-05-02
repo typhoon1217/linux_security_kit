@@ -1,0 +1,48 @@
+---
+# Audit every host in the inventory: sync kit, run check-host + scan-all-cves,
+# collect verdicts. Read-only — does not modify configuration.
+#
+# Usage:
+#   ansible-playbook -i inventory/homelab.yml playbooks/01-audit.yml
+
+- hosts: all
+  become: true
+  gather_facts: true
+
+  roles:
+    - kit_sync
+
+  tasks:
+    - name: run check-host.sh
+      ansible.builtin.command:
+        cmd: "bash {{ kit_dest }}/tools/check-host.sh"
+      register: host_check
+      changed_when: false
+      failed_when: host_check.rc not in [0, 1, 2]
+
+    - name: run scan-all-cves.sh
+      ansible.builtin.command:
+        cmd: "bash {{ kit_dest }}/tools/scan-all-cves.sh"
+      register: cve_scan
+      changed_when: false
+      failed_when: cve_scan.rc not in [0, 1, 2]
+
+    - name: capture per-host verdict
+      ansible.builtin.set_fact:
+        audit_verdict: >-
+          {{ 'vuln' if cve_scan.rc == 2 else
+             'warn' if cve_scan.rc == 1 else
+             'ok' }}
+
+    - name: show summary
+      ansible.builtin.debug:
+        msg: |
+          === {{ inventory_hostname }} ({{ host_kind | default('?') }}) ===
+          verdict: {{ audit_verdict }}
+          last 12 lines of scan-all-cves:
+          {{ cve_scan.stdout_lines[-12:] | join('\n') }}
+
+    - name: aggregate verdicts at end
+      ansible.builtin.debug:
+        msg: "{{ groups['all'] | map('extract', hostvars, 'audit_verdict') | list }}"
+      run_once: true
