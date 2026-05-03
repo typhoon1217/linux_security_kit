@@ -1,0 +1,34 @@
+# Real inventories — never commit. Examples (example-*.yml) are fine.
+ansible/inventory/*.yml
+!ansible/inventory/example-*.yml
+
+# From-pve generated inventories
+ansible/inventory/from-pve*.yml
+
+# Ansible Vault
+*.vault
+.vault-pass
+.vault_pass
+
+# Ansible runtime
+ansible/*.retry
+ansible/.ansible/
+
+# Local overrides
+*.local.yml
+*.local.yaml
+*.local.sh
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Claude Code / OMC local state — contains session metadata,
+# absolute paths, and host aliases. Never publish.
+.claude/
+.omc/
+
+# Audit run outputs — contain real hostnames, IPs, and config snapshots.
+security-audit-results/
